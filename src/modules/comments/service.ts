@@ -17,16 +17,18 @@ export interface CommentList {
 
 export interface CommentDto {
   id: string;
-  articleId: string;
   author: string;
   body: string;
   createdAt: string;
 }
 
+/**
+ * Row → wire shape. The parent article is already pinned by the route path, so
+ * the DTO stays focused on the comment itself.
+ */
 export function toCommentDto(row: CommentRow): CommentDto {
   return {
     id: row.id,
-    articleId: row.articleId,
     author: row.author,
     body: row.body,
     createdAt: row.createdAt.toISOString(),

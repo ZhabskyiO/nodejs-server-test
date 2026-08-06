@@ -28,7 +28,7 @@ export interface UpdateArticle {
 export interface ListFilters {
   status?: string;
   tag?: string;
-  q?: string;
+  search?: string;
   page: number;
   limit: number;
 }
@@ -41,8 +41,8 @@ export class ArticleRepository {
     const clauses: SQL[] = [eq(t.articles.workspaceId, workspaceId)];
     if (filters.status) clauses.push(eq(t.articles.status, filters.status));
     if (filters.tag) clauses.push(arrayContains(t.articles.tags, [filters.tag]));
-    if (filters.q) {
-      const pattern = `%${filters.q}%`;
+    if (filters.search) {
+      const pattern = `%${filters.search}%`;
       const match = or(ilike(t.articles.title, pattern), ilike(t.articles.body, pattern));
       if (match) clauses.push(match);
     }
@@ -111,14 +111,19 @@ export class ArticleRepository {
     return row;
   }
 
-  async markPublished(
+  /**
+   * Move an article to `status`. `publishedAt` is only written when the caller
+   * supplies one, so re-entering a state never rewrites the publication date.
+   */
+  async setStatus(
     workspaceId: string,
     id: string,
-    publishedAt: Date,
+    status: string,
+    publishedAt?: Date,
   ): Promise<ArticleRow | undefined> {
     const [row] = await this.db
       .update(t.articles)
-      .set({ status: 'published', publishedAt, updatedAt: publishedAt })
+      .set({ status, ...(publishedAt && { publishedAt }), updatedAt: new Date() })
       .where(and(eq(t.articles.workspaceId, workspaceId), eq(t.articles.id, id)))
       .returning();
     return row;

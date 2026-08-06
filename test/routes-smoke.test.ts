@@ -48,9 +48,25 @@ describe('routes smoke', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/articles',
-      payload: { title: 'ok', body: 'ok', status: 'archived' },
+      payload: { title: 'ok', body: 'ok', status: 'retracted' },
     });
     expect(res.statusCode).toBe(422);
+  });
+
+  it('rejects an unknown status transition', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/articles/11111111-1111-4111-8111-111111111111/status',
+      payload: { status: 'retracted' },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('validation_error');
+  });
+
+  it('rejects a non-positive page on /tags', async () => {
+    const res = await app.inject({ method: 'GET', url: '/tags?page=0' });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('validation_error');
   });
 
   it('rejects a non-uuid :id param', async () => {

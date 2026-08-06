@@ -1,5 +1,5 @@
 import type { ArticleRow } from './repository.js';
-import { MAX_TAGS, MAX_TAG_LENGTH } from './constants.js';
+import { MAX_TAGS, MAX_TAG_LENGTH, type ArticleStatus } from './constants.js';
 
 /**
  * Pure transforms for the articles module — no DB, no I/O, unit-testable.
@@ -37,10 +37,10 @@ export interface ArticleDto {
   slug: string;
   title: string;
   body: string;
-  status: string;
+  status: ArticleStatus;
   tags: string[];
   authorId: string;
-  publishedAt: string | null;
+  publishedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,10 +55,11 @@ export function toArticleDto(row: ArticleRow): ArticleDto {
     slug: row.slug,
     title: row.title,
     body: row.body,
-    status: row.status,
+    status: row.status as ArticleStatus,
     tags: row.tags,
     authorId: row.authorId,
-    publishedAt: row.publishedAt?.toISOString() ?? null,
+    // Only carried while the article actually has a publication date.
+    publishedAt: row.publishedAt?.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

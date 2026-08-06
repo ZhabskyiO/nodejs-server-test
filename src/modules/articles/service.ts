@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import { ConflictError, NotFoundError } from '../../platform/errors.js';
+import { NotFoundError } from '../../platform/errors.js';
 import { ArticleRepository, type ArticleRow, type ListFilters } from './repository.js';
 import { normalizeTags, slugify } from './helpers.js';
 import { MAX_SLUG_ATTEMPTS, type ArticleStatus } from './constants.js';
@@ -79,19 +79,27 @@ export class ArticleService {
     return row;
   }
 
-  async publish(workspaceId: string, id: string): Promise<ArticleRow> {
+  /**
+   * Drive the article through the status workflow. The publication date is
+   * stamped the first time an article reaches `published` and preserved from
+   * then on, so an archive → publish round-trip keeps the original date.
+   */
+  async setStatus(workspaceId: string, id: string, status: ArticleStatus): Promise<ArticleRow> {
     const existing = await this.getById(workspaceId, id);
-    if (existing.status === 'published') {
-      throw new ConflictError('Article is already published', { articleId: id });
-    }
-    const row = await this.repo.markPublished(workspaceId, id, new Date());
+    const publishedAt =
+      status === 'published' ? (existing.publishedAt ?? new Date()) : undefined;
+
+    const row = await this.repo.setStatus(workspaceId, id, status, publishedAt);
     if (!row) throw new NotFoundError('Article not found');
-    await this.container.notifier.articlePublished({
-      articleId: row.id,
-      workspaceId: row.workspaceId,
-      title: row.title,
-      slug: row.slug,
-    });
+
+    if (status === 'published') {
+      await this.container.notifier.articlePublished({
+        articleId: row.id,
+        workspaceId: row.workspaceId,
+        title: row.title,
+        slug: row.slug,
+      });
+    }
     return row;
   }
 

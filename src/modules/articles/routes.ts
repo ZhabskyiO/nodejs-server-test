@@ -9,12 +9,15 @@ import { ARTICLE_STATUSES, MAX_BODY_LENGTH, MAX_TAGS, MAX_TITLE_LENGTH } from '.
 
 const TagSchema = z.string().min(1).max(64);
 
-const CreateArticleBody = z.object({
-  title: z.string().min(1).max(MAX_TITLE_LENGTH),
-  body: z.string().min(1).max(MAX_BODY_LENGTH),
-  tags: z.array(TagSchema).max(MAX_TAGS).optional(),
-  status: z.enum(ARTICLE_STATUSES).optional(),
-});
+const CreateArticleBody = z
+  .object({
+    title: z.string().min(1).max(MAX_TITLE_LENGTH),
+    body: z.string().min(1).max(MAX_BODY_LENGTH),
+    tags: z.array(TagSchema).max(MAX_TAGS).optional(),
+    status: z.enum(ARTICLE_STATUSES).optional(),
+  })
+  // Surface typo'd field names to the caller instead of silently dropping them.
+  .strict();
 
 const UpdateArticleBody = z
   .object({
@@ -30,23 +33,25 @@ const ListArticlesQuery = PageQuery.extend({
   status: z.enum(ARTICLE_STATUSES).optional(),
   tag: TagSchema.optional(),
   /** Case-insensitive substring match over title + body. */
-  q: z.string().min(1).max(200).optional(),
+  search: z.string().min(1).max(200).optional(),
 });
+
+const SetStatusBody = z.object({ status: z.enum(ARTICLE_STATUSES) });
 
 const ArticleResponse = z.object({
   id: z.string().uuid(),
   slug: z.string(),
   title: z.string(),
   body: z.string(),
-  status: z.string(),
+  status: z.enum(ARTICLE_STATUSES),
   tags: z.array(z.string()),
   authorId: z.string().uuid(),
-  publishedAt: z.string().nullable(),
+  publishedAt: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-const DeletedResponse = z.object({ deleted: z.string().uuid() });
+const DeletedResponse = z.object({ id: z.string().uuid(), deleted: z.boolean() });
 
 /**
  * Articles transport layer: parse/validate, map status codes, delegate. No
@@ -121,17 +126,18 @@ export default async function articlesRoutes(appBase: FastifyInstance) {
     },
   );
 
-  app.post(
-    '/articles/:id/publish',
+  app.patch(
+    '/articles/:id/status',
     {
       schema: {
         params: IdParams,
-        response: { 200: ArticleResponse, 404: ApiError, 409: ApiError },
+        body: SetStatusBody,
+        response: { 200: ArticleResponse, 404: ApiError, 422: ApiError },
       },
     },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
-      return toArticleDto(await service.publish(workspaceId, req.params.id));
+      return toArticleDto(await service.setStatus(workspaceId, req.params.id, req.body.status));
     },
   );
 
@@ -146,7 +152,7 @@ export default async function articlesRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       await service.remove(workspaceId, req.params.id);
-      return { deleted: req.params.id };
+      return { id: req.params.id, deleted: true };
     },
   );
 }

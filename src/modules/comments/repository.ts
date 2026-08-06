@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 
@@ -33,7 +33,8 @@ export class CommentRepository {
       .select()
       .from(t.comments)
       .where(and(eq(t.comments.workspaceId, workspaceId), eq(t.comments.articleId, articleId)))
-      .orderBy(desc(t.comments.createdAt))
+      // Conversation order: a thread reads top to bottom.
+      .orderBy(asc(t.comments.createdAt))
       .limit(page.limit)
       .offset((page.page - 1) * page.limit);
   }

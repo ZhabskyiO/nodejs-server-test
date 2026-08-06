@@ -40,10 +40,12 @@ pnpm dev                # http://localhost:3005
 | `GET` | `/articles/:id` | **404** if missing |
 | `PATCH` | `/articles/:id` | partial; at least one of `title`/`body`/`tags`; slug is never rewritten |
 | `POST` | `/articles/:id/publish` | draft → published; **409** if already published |
+| `PATCH` | `/articles/:id/status` | `{ status }` — `draft` \| `published` \| `archived` |
 | `DELETE` | `/articles/:id` | `{ deleted: id }`; comments cascade |
 | `POST` | `/articles/:id/comments` | **201**; `{ author, body }` |
 | `GET` | `/articles/:id/comments` | `?page=&limit=` → paginated, newest first |
 | `DELETE` | `/comments/:id` | `{ deleted: id }` |
+| `GET` | `/tags` | `?page=&limit=` → tags in the workspace with usage counts |
 
 Errors always come back as `{ "error": { "code", "message", "details"? } }` —
 `validation_error` (422), `not_found` (404), `conflict` (409), `internal_error` (500).
