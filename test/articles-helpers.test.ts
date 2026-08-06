@@ -65,7 +65,16 @@ describe('toArticleDto', () => {
   it('serializes dates to ISO strings', () => {
     const dto = toArticleDto(row);
     expect(dto.createdAt).toBe('2026-01-01T00:00:00.000Z');
-    expect(dto.publishedAt).toBeNull();
+    expect(dto.updatedAt).toBe('2026-01-02T00:00:00.000Z');
+  });
+
+  it('omits publishedAt while the article is unpublished', () => {
+    expect(toArticleDto(row).publishedAt).toBeUndefined();
+  });
+
+  it('carries publishedAt once the article has one', () => {
+    const published = { ...row, publishedAt: new Date('2026-01-03T00:00:00.000Z') };
+    expect(toArticleDto(published).publishedAt).toBe('2026-01-03T00:00:00.000Z');
   });
 
   it('does not leak workspaceId to the wire', () => {

@@ -40,8 +40,8 @@ describe.skipIf(!hasDocker)('articles CRUD (db)', () => {
       title: 'Hello World',
       status: 'draft',
       tags: ['node'],
-      publishedAt: null,
     });
+    expect(article.publishedAt).toBeUndefined();
     expect(article).not.toHaveProperty('workspaceId');
   });
 
@@ -79,27 +79,44 @@ describe.skipIf(!hasDocker)('articles CRUD (db)', () => {
     expect(res.json()).toMatchObject({ title: 'Renamed', slug: 'original-title', tags: ['api'] });
   });
 
-  it('publishes once and notifies, then conflicts', async () => {
+  const setStatus = async (id: string, status: string) =>
+    app.inject({ method: 'PATCH', url: `/articles/${id}/status`, payload: { status } });
+
+  it('publishes through the status endpoint and notifies', async () => {
     const { id } = (await create({ title: 'To Publish', body: 'x' })).json();
 
-    const first = await app.inject({ method: 'POST', url: `/articles/${id}/publish` });
-    expect(first.statusCode).toBe(200);
-    expect(first.json().status).toBe('published');
-    expect(first.json().publishedAt).not.toBeNull();
+    const res = await setStatus(id, 'published');
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('published');
+    expect(res.json().publishedAt).toEqual(expect.any(String));
     expect(notifier.published).toEqual([
       { articleId: id, workspaceId: expect.any(String), title: 'To Publish', slug: 'to-publish' },
     ]);
+  });
 
-    const second = await app.inject({ method: 'POST', url: `/articles/${id}/publish` });
-    expect(second.statusCode).toBe(409);
-    expect(second.json().error.code).toBe('conflict');
-    expect(notifier.published).toHaveLength(1);
+  it('archives a published article and keeps its publication date', async () => {
+    const { id } = (await create({ title: 'To Archive', body: 'x' })).json();
+    const publishedAt = (await setStatus(id, 'published')).json().publishedAt;
+
+    const archived = await setStatus(id, 'archived');
+    expect(archived.statusCode).toBe(200);
+    expect(archived.json().status).toBe('archived');
+    expect(archived.json().publishedAt).toBe(publishedAt);
+
+    const republished = await setStatus(id, 'published');
+    expect(republished.json().publishedAt).toBe(publishedAt);
+  });
+
+  it('404s a status transition on a missing article', async () => {
+    const res = await setStatus('11111111-1111-4111-8111-111111111111', 'published');
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe('not_found');
   });
 
   it('filters by status, tag and free text', async () => {
     const draft = (await create({ title: 'Draft One', body: 'about fastify', tags: ['api'] })).json();
     await create({ title: 'Other', body: 'unrelated', tags: ['misc'] });
-    await app.inject({ method: 'POST', url: `/articles/${draft.id}/publish` });
+    await setStatus(draft.id, 'published');
 
     const published = await app.inject({ method: 'GET', url: '/articles?status=published' });
     expect(published.json().items).toHaveLength(1);
@@ -107,7 +124,7 @@ describe.skipIf(!hasDocker)('articles CRUD (db)', () => {
     const tagged = await app.inject({ method: 'GET', url: '/articles?tag=api' });
     expect(tagged.json().items.map((a: { id: string }) => a.id)).toEqual([draft.id]);
 
-    const searched = await app.inject({ method: 'GET', url: '/articles?q=FASTIFY' });
+    const searched = await app.inject({ method: 'GET', url: '/articles?search=FASTIFY' });
     expect(searched.json().items).toHaveLength(1);
   });
 
@@ -125,7 +142,7 @@ describe.skipIf(!hasDocker)('articles CRUD (db)', () => {
 
     const del = await app.inject({ method: 'DELETE', url: `/articles/${id}` });
     expect(del.statusCode).toBe(200);
-    expect(del.json()).toEqual({ deleted: id });
+    expect(del.json()).toEqual({ id, deleted: true });
 
     expect((await app.inject({ method: 'GET', url: `/articles/${id}` })).statusCode).toBe(404);
     expect((await app.inject({ method: 'DELETE', url: `/articles/${id}` })).statusCode).toBe(404);

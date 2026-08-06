@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import articles from './articles/routes.js';
 import comments from './comments/routes.js';
+import tags from './tags/routes.js';
 
 /**
  * Static module registry. Deliberately not `@fastify/autoload`: native dynamic
@@ -11,4 +12,5 @@ import comments from './comments/routes.js';
 export const modules: Record<string, FastifyPluginAsync> = {
   articles,
   comments,
+  tags,
 };

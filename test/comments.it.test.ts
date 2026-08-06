@@ -41,7 +41,7 @@ describe.skipIf(!hasDocker)('comments (db)', () => {
       payload: { author: 'ann', body: 'nice post' },
     });
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toMatchObject({ articleId: article.id, author: 'ann', body: 'nice post' });
+    expect(res.json()).toMatchObject({ author: 'ann', body: 'nice post' });
   });
 
   it('404s when the parent article does not exist', async () => {
@@ -64,7 +64,7 @@ describe.skipIf(!hasDocker)('comments (db)', () => {
     expect(res.statusCode).toBe(422);
   });
 
-  it('lists comments newest-first with pagination metadata', async () => {
+  it('lists comments in conversation order with pagination metadata', async () => {
     const article = await createArticle();
     for (const body of ['one', 'two', 'three']) {
       await app.inject({
@@ -77,7 +77,7 @@ describe.skipIf(!hasDocker)('comments (db)', () => {
     const res = await app.inject({ method: 'GET', url: `/articles/${article.id}/comments?limit=2` });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ page: 1, limit: 2, total: 3 });
-    expect(res.json().items).toHaveLength(2);
+    expect(res.json().items.map((c: { body: string }) => c.body)).toEqual(['one', 'two']);
   });
 
   it('deletes a comment by id', async () => {
@@ -92,6 +92,7 @@ describe.skipIf(!hasDocker)('comments (db)', () => {
 
     const del = await app.inject({ method: 'DELETE', url: `/comments/${comment.id}` });
     expect(del.statusCode).toBe(200);
+    expect(del.json()).toEqual({ id: comment.id, deleted: true });
     expect((await app.inject({ method: 'DELETE', url: `/comments/${comment.id}` })).statusCode).toBe(
       404,
     );

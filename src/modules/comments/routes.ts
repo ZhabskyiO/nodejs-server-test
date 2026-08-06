@@ -15,13 +15,16 @@ const CreateCommentBody = z.object({
 
 const CommentResponse = z.object({
   id: z.string().uuid(),
-  articleId: z.string().uuid(),
   author: z.string(),
   body: z.string(),
   createdAt: z.string(),
 });
 
-const DeletedResponse = z.object({ deleted: z.string().uuid() });
+const DeletedResponse = z.object({ id: z.string().uuid(), deleted: z.boolean() });
+
+/** Nested listing is superseded by the flat `GET /comments?articleId=` reader. */
+const NESTED_LIST_ROUTE = '/articles/:id/comments';
+const NESTED_LIST_SUNSET = 'Sat, 15 Aug 2026 00:00:00 GMT';
 
 /**
  * Comments transport layer. Creation/listing are nested under the parent
@@ -30,6 +33,13 @@ const DeletedResponse = z.object({ deleted: z.string().uuid() });
 export default async function commentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const service = new CommentService(app.container);
+
+  app.addHook('onSend', async (req, reply) => {
+    if (req.method === 'GET' && req.routeOptions.url === NESTED_LIST_ROUTE) {
+      reply.header('Deprecation', 'true');
+      reply.header('Sunset', NESTED_LIST_SUNSET);
+    }
+  });
 
   app.post(
     '/articles/:id/comments',
@@ -80,7 +90,7 @@ export default async function commentsRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       await service.remove(workspaceId, req.params.id);
-      return { deleted: req.params.id };
+      return { id: req.params.id, deleted: true };
     },
   );
 }

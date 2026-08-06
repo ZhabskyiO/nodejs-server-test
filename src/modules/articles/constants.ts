@@ -1,4 +1,4 @@
-export const ARTICLE_STATUSES = ['draft', 'published'] as const;
+export const ARTICLE_STATUSES = ['draft', 'published', 'archived'] as const;
 export type ArticleStatus = (typeof ARTICLE_STATUSES)[number];
 
 export const MAX_TITLE_LENGTH = 200;

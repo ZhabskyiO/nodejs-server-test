@@ -6,7 +6,7 @@ export const IdParams = z.object({ id: z.string().uuid() });
 /** Shared pagination querystring. Coerced from strings, bounded server-side. */
 export const PageQuery = z.object({
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(100).default(20),
+  limit: z.coerce.number().int().positive().max(50).default(25),
 });
 
 /** Envelope every list endpoint returns. */
