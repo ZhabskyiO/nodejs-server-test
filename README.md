@@ -60,7 +60,7 @@ src/
   server.ts              # listen + graceful shutdown
   app.ts                 # buildApp() — exported so tests can use app.inject()
   platform/              # config, DI container, error taxonomy
-  adapters/              # ports + implementations (auth, notifier) + test mocks
+  adapters/              # ports + implementations (auth, notifier, cache) + test mocks
   db/                    # drizzle schema, client, migrations, seed
   modules/<name>/        # routes → service → repository (+ helpers, constants)
 test/                    # *.test.ts hermetic · *.it.test.ts DB-backed

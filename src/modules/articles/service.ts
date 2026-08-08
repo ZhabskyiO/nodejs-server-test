@@ -1,7 +1,13 @@
 import type { Container } from '../../platform/container.js';
 import { ConflictError, NotFoundError } from '../../platform/errors.js';
 import { ArticleRepository, type ArticleRow, type ListFilters } from './repository.js';
-import { normalizeTags, slugify } from './helpers.js';
+import {
+  articleCacheKey,
+  deserializeArticleRow,
+  normalizeTags,
+  serializeArticleRow,
+  slugify,
+} from './helpers.js';
 import { MAX_SLUG_ATTEMPTS, type ArticleStatus } from './constants.js';
 
 export interface CreateArticleInput {
@@ -44,7 +50,32 @@ export class ArticleService {
     return { items, page: filters.page, limit: filters.limit, total };
   }
 
+  /**
+   * Read-through cache. A miss (or an unreachable Redis, which the adapter
+   * reports as a miss) falls back to the DB, so behaviour is identical with the
+   * cache off — only the number of round-trips changes.
+   *
+   * 404s are deliberately not cached: an article that appears later would keep
+   * returning 404 for the rest of the TTL.
+   */
   async getById(workspaceId: string, id: string): Promise<ArticleRow> {
+    const key = articleCacheKey(workspaceId, id);
+    const cached = await this.container.cache.get(key);
+    if (cached) {
+      const row = deserializeArticleRow(cached);
+      if (row) return row;
+    }
+    const row = await this.readFresh(workspaceId, id);
+    await this.container.cache.set(
+      key,
+      serializeArticleRow(row),
+      this.container.config.cacheTtlSeconds,
+    );
+    return row;
+  }
+
+  /** Bypasses the cache — for callers that must not act on a stale row. */
+  private async readFresh(workspaceId: string, id: string): Promise<ArticleRow> {
     const row = await this.repo.getById(workspaceId, id);
     if (!row) throw new NotFoundError('Article not found');
     return row;
@@ -76,16 +107,20 @@ export class ArticleService {
       ...(input.tags !== undefined && { tags: normalizeTags(input.tags) }),
     });
     if (!row) throw new NotFoundError('Article not found');
+    await this.invalidate(workspaceId, id);
     return row;
   }
 
   async publish(workspaceId: string, id: string): Promise<ArticleRow> {
-    const existing = await this.getById(workspaceId, id);
+    // readFresh, not getById: the already-published check is a correctness
+    // guard, and a cached row could be up to one TTL behind reality.
+    const existing = await this.readFresh(workspaceId, id);
     if (existing.status === 'published') {
       throw new ConflictError('Article is already published', { articleId: id });
     }
     const row = await this.repo.markPublished(workspaceId, id, new Date());
     if (!row) throw new NotFoundError('Article not found');
+    await this.invalidate(workspaceId, id);
     await this.container.notifier.articlePublished({
       articleId: row.id,
       workspaceId: row.workspaceId,
@@ -98,6 +133,15 @@ export class ArticleService {
   async remove(workspaceId: string, id: string): Promise<void> {
     const removed = await this.repo.remove(workspaceId, id);
     if (!removed) throw new NotFoundError('Article not found');
+    await this.invalidate(workspaceId, id);
+  }
+
+  /**
+   * Drop the cached row after a write. Invalidating (rather than rewriting) the
+   * key keeps the DB the single source of truth: the next read repopulates it.
+   */
+  private async invalidate(workspaceId: string, id: string): Promise<void> {
+    await this.container.cache.del(articleCacheKey(workspaceId, id));
   }
 
   /**

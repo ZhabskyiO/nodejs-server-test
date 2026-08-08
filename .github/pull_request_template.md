@@ -3,9 +3,35 @@ PR title must follow Conventional Commits (feat:, fix:, refactor:, chore:, test:
 — the repo squash-merges, so the title becomes the commit message.
 -->
 
-## What & why
+## Summary
 
-<!-- One paragraph: what changed and what problem it solves. -->
+<!--
+One paragraph: what changed, what problem it solves, and how it works.
+Name the real files/symbols (`ArticleRepository.list`, `ListArticlesQuery`, …).
+Describe the mechanism, including the parts you knowingly left rough
+("no index backs the match", "one query per row") — those sentences are what a
+reviewer, human or model, uses to locate risk.
+-->
+
+## Non-goals
+
+<!--
+What this PR deliberately does NOT do. Delete the lines that aren't true of your
+change; add the ones that are. Only claim a non-goal you actually held to.
+-->
+
+- No changes to authentication or tenant resolution in `getContext()`
+- No new endpoints
+- No schema change, so no migration ships with this
+- No change to any existing response schema
+
+## Notes
+
+<!--
+Anything a reviewer should weigh: contract widening, migration shape, extra
+round-trips per request, a new dependency and the port it sits behind. One
+concrete sentence each — state the mechanism, not a severity label.
+-->
 
 ## How to verify
 

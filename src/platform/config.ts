@@ -16,6 +16,10 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // Unset (or empty, as `.env.example` ships it) means "no cache": the container
+  // falls back to NoopCache, so Redis stays an opt-in deployment concern.
+  REDIS_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  CACHE_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(60),
 });
 
 export type AppConfig = {
@@ -26,6 +30,10 @@ export type AppConfig = {
   logLevel: string;
   /** Allowed CORS origin for a browser client. */
   webOrigin: string;
+  /** Undefined disables the read cache entirely. */
+  redisUrl?: string;
+  /** TTL applied to every cached article read. */
+  cacheTtlSeconds: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -37,5 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv: parsed.NODE_ENV,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
+    redisUrl: parsed.REDIS_URL,
+    cacheTtlSeconds: parsed.CACHE_TTL_SECONDS,
   };
 }

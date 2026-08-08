@@ -1,4 +1,10 @@
-import type { ArticlePublishedEvent, AuthProvider, Notifier, RequestIdentity } from './ports.js';
+import type {
+  ArticlePublishedEvent,
+  AuthProvider,
+  CachePort,
+  Notifier,
+  RequestIdentity,
+} from './ports.js';
 import { DEFAULT_WORKSPACE_ID, SYSTEM_USER_ID } from './auth/local.js';
 
 /** Records what it was told, so tests can assert on outbound effects. */
@@ -22,4 +28,29 @@ export class MockAuthProvider implements AuthProvider {
   async resolve(): Promise<RequestIdentity> {
     return this.identity;
   }
+}
+
+/**
+ * In-process CachePort. TTLs are recorded but never expire — a test that needs
+ * expiry should call `del()` rather than wait on a clock.
+ */
+export class InMemoryCache implements CachePort {
+  readonly entries = new Map<string, { value: string; ttlSeconds: number }>();
+  /** Every key ever asked for, in order — lets a test assert on hits/misses. */
+  readonly reads: string[] = [];
+
+  async get(key: string): Promise<string | null> {
+    this.reads.push(key);
+    return this.entries.get(key)?.value ?? null;
+  }
+
+  async set(key: string, value: string, ttlSeconds: number): Promise<void> {
+    this.entries.set(key, { value, ttlSeconds });
+  }
+
+  async del(key: string): Promise<void> {
+    this.entries.delete(key);
+  }
+
+  async close(): Promise<void> {}
 }

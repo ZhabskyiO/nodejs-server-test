@@ -26,3 +26,17 @@ export interface ArticlePublishedEvent {
 export interface Notifier {
   articlePublished(event: ArticlePublishedEvent): Promise<void>;
 }
+
+/**
+ * Key/value cache with a TTL. Deliberately string-in/string-out: serialization
+ * is the caller's business, so the port stays free of any module's row shape.
+ *
+ * Every method must degrade rather than throw — a cache outage is not a request
+ * failure. Implementations swallow transport errors and behave as a miss.
+ */
+export interface CachePort {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, ttlSeconds: number): Promise<void>;
+  del(key: string): Promise<void>;
+  close(): Promise<void>;
+}
