@@ -61,7 +61,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  app.decorate('container', new Container(config, db, opts.overrides));
+  app.decorate('container', new Container(config, db, opts.overrides, app.log));
 
   // Security headers. The API serves JSON only, so the default CSP is fine.
   await app.register(helmet);
@@ -140,6 +140,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   for (const plugin of Object.values(modules)) {
     await app.register(plugin);
   }
+
+  // Release adapter sockets (Redis) on shutdown, whoever owns the db handle.
+  app.addHook('onClose', async () => app.container.close());
 
   // Close the db handle we created (not one passed in by a test).
   if (handle) app.addHook('onClose', async () => handle.close());
