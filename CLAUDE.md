@@ -29,7 +29,7 @@ jobs   (transport)  ↗
 | Ring | Lives in | May do |
 |---|---|---|
 | Transport | `src/modules/<name>/routes.ts` | parse + validate, set status codes, delegate |
-| Jobs | `src/platform/jobs.ts` | the other transport: bind a service to the `Scheduler` port — "when, and for whom", no business logic |
+| Jobs | `src/platform/jobs.ts`, `src/jobs/<name>.ts` | the other transport: bind a service to the `Scheduler` port — "when, and for whom", no business logic. `CRON_SCHEDULES` is the schedule of record; a scheduled workflow that runs the same job mirrors that expression |
 | Application | `src/modules/<name>/service.ts` | business rules, orchestration, throws domain errors |
 | Persistence | `src/modules/<name>/repository.ts` | the only file allowed to touch its table |
 | Ports/Adapters | `src/adapters/**` | wrap anything external |

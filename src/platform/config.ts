@@ -21,7 +21,8 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
-  STALE_DRAFT_CRON: z.string().default('0 3 * * *'),
+  // Empty → the job's registered default (`CRON_SCHEDULES` in platform/jobs.ts).
+  STALE_DRAFT_CRON: z.string().default(''),
   STALE_DRAFT_AFTER_DAYS: z.coerce.number().int().min(0).default(14),
   /** Per-workspace cap on one digest, so a neglected workspace can't produce a huge run. */
   STALE_DRAFT_LIMIT: z.coerce.number().int().positive().default(50),
@@ -41,6 +42,7 @@ export type AppConfig = {
 export type JobsConfig = {
   /** Never true under `NODE_ENV=test`: a live timer would outlive the suite. */
   enabled: boolean;
+  /** Empty means "use the expression the job registers itself with". */
   staleDraftCron: string;
   staleDraftAfterDays: number;
   staleDraftLimit: number;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig, type AppConfig } from '../src/platform/config.js';
 import { MockAuthProvider, MockNotifier, MockScheduler } from '../src/adapters/mocks.js';
-import { STALE_DRAFT_DIGEST } from '../src/platform/jobs.js';
+import { CRON_SCHEDULES, STALE_DRAFT_DIGEST } from '../src/platform/jobs.js';
 import type { Db } from '../src/db/client.js';
 import type { ArticleRow } from '../src/modules/articles/repository.js';
 import * as t from '../src/db/schema.js';
@@ -76,6 +76,20 @@ describe('background jobs', () => {
 
     await app.close();
     expect(scheduler.stopped).toBe(true);
+  });
+
+  it('falls back to the registered schedule when STALE_DRAFT_CRON is unset', async () => {
+    const scheduler = new MockScheduler();
+    const app = await buildApp({
+      config: jobsConfig({ STALE_DRAFT_CRON: '' }),
+      db: fakeDb([]),
+      overrides: { scheduler, auth: new MockAuthProvider() },
+    });
+
+    expect(scheduler.jobs[0]!.expression).toBe(CRON_SCHEDULES[STALE_DRAFT_DIGEST]);
+    expect(scheduler.jobs[0]!.expression).toBe('0 3 * * *');
+
+    await app.close();
   });
 
   it('registers nothing when JOBS_ENABLED is false', async () => {

@@ -67,14 +67,21 @@ rest.
 | Env | Default | Meaning |
 |---|---|---|
 | `JOBS_ENABLED` | `true` | Master switch. Forced **off** under `NODE_ENV=test` so a suite can't leave a live timer behind. |
-| `STALE_DRAFT_CRON` | `0 3 * * *` | Standard cron expression, validated at startup. |
+| `STALE_DRAFT_CRON` | *(empty)* | Overrides the registered expression. Empty falls back to `CRON_SCHEDULES` in `src/platform/jobs.ts`. Validated at startup. |
 | `STALE_DRAFT_AFTER_DAYS` | `14` | How idle a draft must be to be reported. |
 | `STALE_DRAFT_LIMIT` | `50` | Per-workspace cap on one digest. |
 
-Watch it fire without waiting for 03:00:
+Each job has two triggers and one implementation. In-process cron covers a long-lived single replica;
+the scheduled workflow (`.github/workflows/stale-draft-digest.yml`, same expression) covers the rest —
+API scaled to zero, or several replicas, where in-process cron fires once per replica. Both call
+`runStaleDraftDigest()`.
 
 ```bash
+# watch the in-process cron fire, without waiting for 03:00
 STALE_DRAFT_CRON='* * * * *' STALE_DRAFT_AFTER_DAYS=0 pnpm dev
+
+# or run it once and exit — this is what the workflow invokes
+pnpm job:stale-drafts
 ```
 
 ## Layout
@@ -83,6 +90,7 @@ STALE_DRAFT_CRON='* * * * *' STALE_DRAFT_AFTER_DAYS=0 pnpm dev
 src/
   server.ts              # listen + graceful shutdown
   app.ts                 # buildApp() — exported so tests can use app.inject()
+  jobs/<name>.ts         # one-shot job entrypoints (scheduled workflows call these)
   platform/              # config, DI container, error taxonomy, job registry
   adapters/              # ports + implementations (auth, notifier, scheduler) + test mocks
   db/                    # drizzle schema, client, migrations, seed
