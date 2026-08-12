@@ -16,6 +16,15 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // Background jobs. Off under test regardless of this flag — see below.
+  JOBS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  STALE_DRAFT_CRON: z.string().default('0 3 * * *'),
+  STALE_DRAFT_AFTER_DAYS: z.coerce.number().int().min(0).default(14),
+  /** Per-workspace cap on one digest, so a neglected workspace can't produce a huge run. */
+  STALE_DRAFT_LIMIT: z.coerce.number().int().positive().default(50),
 });
 
 export type AppConfig = {
@@ -26,6 +35,15 @@ export type AppConfig = {
   logLevel: string;
   /** Allowed CORS origin for a browser client. */
   webOrigin: string;
+  jobs: JobsConfig;
+};
+
+export type JobsConfig = {
+  /** Never true under `NODE_ENV=test`: a live timer would outlive the suite. */
+  enabled: boolean;
+  staleDraftCron: string;
+  staleDraftAfterDays: number;
+  staleDraftLimit: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -37,5 +55,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv: parsed.NODE_ENV,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
+    jobs: {
+      enabled: parsed.JOBS_ENABLED && parsed.NODE_ENV !== 'test',
+      staleDraftCron: parsed.STALE_DRAFT_CRON,
+      staleDraftAfterDays: parsed.STALE_DRAFT_AFTER_DAYS,
+      staleDraftLimit: parsed.STALE_DRAFT_LIMIT,
+    },
   };
 }

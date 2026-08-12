@@ -14,6 +14,7 @@ import { loadConfig, type AppConfig } from './platform/config.js';
 import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
+import { registerJobs } from './platform/jobs.js';
 import { modules } from './modules/index.js';
 
 // Attach the DI container to the instance (and therefore to every route).
@@ -34,7 +35,7 @@ export interface BuildAppOptions {
  *
  * Registration order matters: zod compilers → container → security plugins →
  * health routes → error handler (BEFORE modules, so encapsulated module plugins
- * inherit it) → feature modules.
+ * inherit it) → feature modules → background jobs.
  */
 export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInstance> {
   const config = opts.config ?? loadConfig();
@@ -61,7 +62,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  app.decorate('container', new Container(config, db, opts.overrides));
+  app.decorate('container', new Container(config, db, opts.overrides, app.log));
 
   // Security headers. The API serves JSON only, so the default CSP is fine.
   await app.register(helmet);
@@ -140,6 +141,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   for (const plugin of Object.values(modules)) {
     await app.register(plugin);
   }
+
+  // Background jobs, after the modules they lean on. Never under NODE_ENV=test:
+  // loadConfig() forces `jobs.enabled` false there, so a suite calling
+  // buildApp() cannot leave a live timer behind.
+  if (config.jobs.enabled) registerJobs(app);
+
+  // Release adapters (the scheduler's timers) before the db handle goes.
+  app.addHook('onClose', async () => app.container.close());
 
   // Close the db handle we created (not one passed in by a test).
   if (handle) app.addHook('onClose', async () => handle.close());

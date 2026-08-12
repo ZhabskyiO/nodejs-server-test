@@ -21,6 +21,7 @@ pnpm dev                # http://localhost:3005
 
 ```
 routes (transport)  →  service (application)  →  repository (persistence)  →  db
+jobs   (transport)  ↗
                     ↘  adapters (ports)  ↗
                        platform/container.ts wires everything
 ```
@@ -28,6 +29,7 @@ routes (transport)  →  service (application)  →  repository (persistence)  �
 | Ring | Lives in | May do |
 |---|---|---|
 | Transport | `src/modules/<name>/routes.ts` | parse + validate, set status codes, delegate |
+| Jobs | `src/platform/jobs.ts` | the other transport: bind a service to the `Scheduler` port — "when, and for whom", no business logic |
 | Application | `src/modules/<name>/service.ts` | business rules, orchestration, throws domain errors |
 | Persistence | `src/modules/<name>/repository.ts` | the only file allowed to touch its table |
 | Ports/Adapters | `src/adapters/**` | wrap anything external |
@@ -39,7 +41,9 @@ routes (transport)  →  service (application)  →  repository (persistence)  �
 1. **Validate at the edge.** Routes declare Zod `schema: { body, params, querystring, response }`
    and call `app.withTypeProvider<ZodTypeProvider>()`. Never `Schema.parse(req.body)` in a handler.
 2. **Scope every query by `workspaceId`.** Handlers get it from `getContext(app.container, req)`;
-   repositories `and(eq(table.workspaceId, workspaceId), …)` on every read, update and delete.
+   repositories build their WHERE with `workspaceScope(table, workspaceId, …)`
+   (`src/modules/_shared/scope.ts`) on every read, update and delete. A job has no request, so it
+   fans out over `WorkspaceRepository.listIds()` and passes one workspace at a time.
 3. **Throw, don't build errors.** `throw new NotFoundError('Article not found')`. The single
    `setErrorHandler` in `src/app.ts` renders `{ error: { code, message, details } }`. Unknown
    failures return a generic message — internal detail must not reach the client.

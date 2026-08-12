@@ -1,6 +1,7 @@
-import { and, arrayContains, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { arrayContains, asc, count, desc, eq, ilike, lt, or, type SQL } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import { workspaceScope } from '../_shared/scope.js';
 
 /**
  * Articles data-access layer. The ONLY place that touches the `articles` table.
@@ -37,16 +38,15 @@ export class ArticleRepository {
   constructor(private db: Db) {}
 
   /** Build the shared WHERE for list/count so the two can never diverge. */
-  private listWhere(workspaceId: string, filters: ListFilters): SQL | undefined {
-    const clauses: SQL[] = [eq(t.articles.workspaceId, workspaceId)];
+  private listWhere(workspaceId: string, filters: ListFilters): SQL {
+    const clauses: (SQL | undefined)[] = [];
     if (filters.status) clauses.push(eq(t.articles.status, filters.status));
     if (filters.tag) clauses.push(arrayContains(t.articles.tags, [filters.tag]));
     if (filters.q) {
       const pattern = `%${filters.q}%`;
-      const match = or(ilike(t.articles.title, pattern), ilike(t.articles.body, pattern));
-      if (match) clauses.push(match);
+      clauses.push(or(ilike(t.articles.title, pattern), ilike(t.articles.body, pattern)));
     }
-    return and(...clauses);
+    return workspaceScope(t.articles, workspaceId, ...clauses);
   }
 
   async list(workspaceId: string, filters: ListFilters): Promise<ArticleRow[]> {
@@ -72,7 +72,7 @@ export class ArticleRepository {
     const [row] = await this.db
       .select()
       .from(t.articles)
-      .where(and(eq(t.articles.workspaceId, workspaceId), eq(t.articles.id, id)));
+      .where(workspaceScope(t.articles, workspaceId, eq(t.articles.id, id)));
     return row;
   }
 
@@ -80,8 +80,29 @@ export class ArticleRepository {
     const [row] = await this.db
       .select()
       .from(t.articles)
-      .where(and(eq(t.articles.workspaceId, workspaceId), eq(t.articles.slug, slug)));
+      .where(workspaceScope(t.articles, workspaceId, eq(t.articles.slug, slug)));
     return row;
+  }
+
+  /**
+   * Drafts nobody has touched since `cutoff`, oldest first — the input to the
+   * stale-draft digest job. Bounded so one neglected workspace can't turn the
+   * nightly run into a full-table read.
+   */
+  async listStaleDrafts(workspaceId: string, cutoff: Date, limit: number): Promise<ArticleRow[]> {
+    return this.db
+      .select()
+      .from(t.articles)
+      .where(
+        workspaceScope(
+          t.articles,
+          workspaceId,
+          eq(t.articles.status, 'draft'),
+          lt(t.articles.updatedAt, cutoff),
+        ),
+      )
+      .orderBy(asc(t.articles.updatedAt))
+      .limit(limit);
   }
 
   /** Slugs already taken in this workspace that start with `base` (dedupe input). */
@@ -89,7 +110,7 @@ export class ArticleRepository {
     const rows = await this.db
       .select({ slug: t.articles.slug })
       .from(t.articles)
-      .where(and(eq(t.articles.workspaceId, workspaceId), ilike(t.articles.slug, `${base}%`)));
+      .where(workspaceScope(t.articles, workspaceId, ilike(t.articles.slug, `${base}%`)));
     return rows.map((r) => r.slug);
   }
 
@@ -106,7 +127,7 @@ export class ArticleRepository {
     const [row] = await this.db
       .update(t.articles)
       .set({ ...values, updatedAt: new Date() })
-      .where(and(eq(t.articles.workspaceId, workspaceId), eq(t.articles.id, id)))
+      .where(workspaceScope(t.articles, workspaceId, eq(t.articles.id, id)))
       .returning();
     return row;
   }
@@ -119,7 +140,7 @@ export class ArticleRepository {
     const [row] = await this.db
       .update(t.articles)
       .set({ status: 'published', publishedAt, updatedAt: publishedAt })
-      .where(and(eq(t.articles.workspaceId, workspaceId), eq(t.articles.id, id)))
+      .where(workspaceScope(t.articles, workspaceId, eq(t.articles.id, id)))
       .returning();
     return row;
   }
@@ -128,7 +149,7 @@ export class ArticleRepository {
   async remove(workspaceId: string, id: string): Promise<boolean> {
     const deleted = await this.db
       .delete(t.articles)
-      .where(and(eq(t.articles.workspaceId, workspaceId), eq(t.articles.id, id)))
+      .where(workspaceScope(t.articles, workspaceId, eq(t.articles.id, id)))
       .returning({ id: t.articles.id });
     return deleted.length > 0;
   }

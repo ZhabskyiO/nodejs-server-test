@@ -1,6 +1,7 @@
-import { and, count, desc, eq } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import { workspaceScope } from '../_shared/scope.js';
 
 /**
  * Comments data-access layer. The ONLY place that touches the `comments` table.
@@ -32,7 +33,7 @@ export class CommentRepository {
     return this.db
       .select()
       .from(t.comments)
-      .where(and(eq(t.comments.workspaceId, workspaceId), eq(t.comments.articleId, articleId)))
+      .where(workspaceScope(t.comments, workspaceId, eq(t.comments.articleId, articleId)))
       .orderBy(desc(t.comments.createdAt))
       .limit(page.limit)
       .offset((page.page - 1) * page.limit);
@@ -42,7 +43,7 @@ export class CommentRepository {
     const [row] = await this.db
       .select({ value: count() })
       .from(t.comments)
-      .where(and(eq(t.comments.workspaceId, workspaceId), eq(t.comments.articleId, articleId)));
+      .where(workspaceScope(t.comments, workspaceId, eq(t.comments.articleId, articleId)));
     return row?.value ?? 0;
   }
 
@@ -54,7 +55,7 @@ export class CommentRepository {
   async remove(workspaceId: string, id: string): Promise<boolean> {
     const deleted = await this.db
       .delete(t.comments)
-      .where(and(eq(t.comments.workspaceId, workspaceId), eq(t.comments.id, id)))
+      .where(workspaceScope(t.comments, workspaceId, eq(t.comments.id, id)))
       .returning({ id: t.comments.id });
     return deleted.length > 0;
   }
