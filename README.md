@@ -67,3 +67,12 @@ test/                    # *.test.ts hermetic · *.it.test.ts DB-backed
 ```
 
 Conventions the code follows (and PRs are checked against) are in [CLAUDE.md](CLAUDE.md).
+
+## Further reading
+
+- **[docs/](docs/)** — how the service works: [architecture](docs/architecture.md),
+  [API reference](docs/api.md), [database](docs/database.md), [testing](docs/testing.md),
+  and the [decisions](docs/decisions.md) behind the odd-looking bits.
+- **[specs/](specs/)** — behavioural contracts per feature, plus a
+  [template](specs/TEMPLATE.md) for new ones.
+- **[.claude/](.claude/)** — review agents and task playbooks for working in this repo.
