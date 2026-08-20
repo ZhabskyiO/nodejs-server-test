@@ -17,6 +17,8 @@ How this service actually works. Descriptive — what the code does today.
 - **[../README.md](../README.md)** — setup and the endpoint summary.
 - **[../specs/](../specs/)** — prescriptive: what a feature is *supposed* to do. Docs
   describe the system, specs define behaviour before it exists.
+- **[../insights/](../insights/)** — where the system does not do what these docs imply:
+  verified findings and a symptom-indexed gotchas list.
 - **[../.claude/](../.claude/)** — agents that review changes against these rules
   (`layering-reviewer`, `tenancy-auditor`, `api-contract-reviewer`) and skills that walk
   through common tasks (`new-feature-module`, `add-endpoint`, `db-schema-change`,
