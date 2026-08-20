@@ -75,4 +75,7 @@ Conventions the code follows (and PRs are checked against) are in [CLAUDE.md](CL
   and the [decisions](docs/decisions.md) behind the odd-looking bits.
 - **[specs/](specs/)** — behavioural contracts per feature, plus a
   [template](specs/TEMPLATE.md) for new ones.
+- **[insights/](insights/)** — verified findings about how the system really behaves
+  ([INSIGHTS.md](insights/INSIGHTS.md)) and the traps that cost you an hour
+  ([gotchas.md](insights/gotchas.md)).
 - **[.claude/](.claude/)** — review agents and task playbooks for working in this repo.
