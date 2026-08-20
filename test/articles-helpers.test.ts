@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTags, slugify, toArticleDto } from '../src/modules/articles/helpers.js';
+import {
+  normalizeTags,
+  slugify,
+  staleCutoff,
+  toArticleDto,
+  toDigestLine,
+} from '../src/modules/articles/helpers.js';
 import type { ArticleRow } from '../src/modules/articles/repository.js';
 import { MAX_TAGS } from '../src/modules/articles/constants.js';
 
@@ -70,5 +76,40 @@ describe('toArticleDto', () => {
 
   it('does not leak workspaceId to the wire', () => {
     expect(toArticleDto(row)).not.toHaveProperty('workspaceId');
+  });
+
+  describe('staleCutoff', () => {
+    const now = new Date('2026-08-11T09:00:00.000Z');
+
+    it('subtracts whole days from now', () => {
+      expect(staleCutoff(now, 14).toISOString()).toBe('2026-07-28T09:00:00.000Z');
+    });
+
+    it('returns now itself for 0 days', () => {
+      expect(staleCutoff(now, 0).getTime()).toBe(now.getTime());
+    });
+
+    it('crosses a DST boundary without drifting (UTC arithmetic)', () => {
+      const cutoff = staleCutoff(new Date('2026-03-30T09:00:00.000Z'), 1);
+      expect(cutoff.toISOString()).toBe('2026-03-29T09:00:00.000Z');
+    });
+  });
+
+  describe('toDigestLine', () => {
+    it('reports the slug, the date and the idle days', () => {
+      const line = toDigestLine(
+        { ...row, updatedAt: new Date('2026-07-28T09:00:00.000Z') },
+        new Date('2026-08-11T09:00:00.000Z'),
+      );
+      expect(line).toBe('hello — untouched since 2026-07-28 (14d)');
+    });
+
+    it('floors a partial day rather than rounding up', () => {
+      const line = toDigestLine(
+        { ...row, updatedAt: new Date('2026-08-10T23:00:00.000Z') },
+        new Date('2026-08-11T09:00:00.000Z'),
+      );
+      expect(line).toContain('(0d)');
+    });
   });
 });

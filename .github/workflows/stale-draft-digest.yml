@@ -1,0 +1,53 @@
+# Hosted trigger for the `stale-draft-digest` job.
+#
+# The API also schedules this in-process (src/platform/jobs.ts) — that covers a
+# long-lived single replica. This workflow covers the deployments where that
+# doesn't hold: API scaled to zero, or more than one replica, where an
+# in-process cron would fire the digest once per replica.
+#
+# Both triggers call the same runner, src/jobs/stale-draft-digest.ts, and the
+# expression below is the one in CRON_SCHEDULES. Keep them in step.
+name: stale-draft-digest
+
+on:
+  schedule:
+    # 03:00 UTC daily — GitHub schedules are always UTC.
+    - cron: '0 3 * * *'
+  # So the digest can be fired by hand without waiting for 03:00.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stale-draft-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    name: stale draft digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run the digest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NODE_ENV: production
+          # One-shot run: never arm the in-process scheduler from this process.
+          JOBS_ENABLED: 'false'
+          STALE_DRAFT_AFTER_DAYS: '14'
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret is not configured — nothing to sweep, skipping."
+            exit 0
+          fi
+          pnpm job:stale-drafts

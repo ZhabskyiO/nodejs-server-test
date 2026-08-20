@@ -1,7 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import { ConflictError, NotFoundError } from '../../platform/errors.js';
 import { ArticleRepository, type ArticleRow, type ListFilters } from './repository.js';
-import { normalizeTags, slugify } from './helpers.js';
+import { normalizeTags, slugify, staleCutoff, toDigestLine } from './helpers.js';
 import { MAX_SLUG_ATTEMPTS, type ArticleStatus } from './constants.js';
 
 export interface CreateArticleInput {
@@ -98,6 +98,30 @@ export class ArticleService {
   async remove(workspaceId: string, id: string): Promise<void> {
     const removed = await this.repo.remove(workspaceId, id);
     if (!removed) throw new NotFoundError('Article not found');
+  }
+
+  /**
+   * Nightly digest of drafts nobody has touched in `jobs.staleDraftAfterDays`.
+   * Read-only: it reports, it never changes an article's status. `now` is a
+   * parameter rather than a `new Date()` inside so the job stays testable.
+   *
+   * Returns the number of drafts reported (0 = nothing sent).
+   */
+  async staleDraftDigest(workspaceId: string, now: Date): Promise<number> {
+    const { staleDraftAfterDays, staleDraftLimit } = this.container.config.jobs;
+    const rows = await this.repo.listStaleDrafts(
+      workspaceId,
+      staleCutoff(now, staleDraftAfterDays),
+      staleDraftLimit,
+    );
+    // No drafts, no notification — a nightly "nothing to report" mail is how a
+    // digest gets filtered into oblivion.
+    if (rows.length === 0) return 0;
+    await this.container.notifier.staleDraftsPending({
+      workspaceId,
+      lines: rows.map((row) => toDigestLine(row, now)),
+    });
+    return rows.length;
   }
 
   /**

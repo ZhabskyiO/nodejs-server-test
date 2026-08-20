@@ -1,4 +1,4 @@
-import type { ArticlePublishedEvent, Notifier } from '../ports.js';
+import type { ArticlePublishedEvent, Notifier, StaleDraftsEvent } from '../ports.js';
 
 /**
  * Stand-in for a real outbound channel (email / webhook / queue). Writing to
@@ -8,5 +8,12 @@ import type { ArticlePublishedEvent, Notifier } from '../ports.js';
 export class ConsoleNotifier implements Notifier {
   async articlePublished(event: ArticlePublishedEvent): Promise<void> {
     console.log(`[notifier] article published: ${event.slug} (${event.articleId})`);
+  }
+
+  async staleDraftsPending(event: StaleDraftsEvent): Promise<void> {
+    console.log(
+      `[notifier] stale drafts pending: ${event.lines.length} in workspace ${event.workspaceId}`,
+    );
+    for (const line of event.lines) console.log(`[notifier]   ${line}`);
   }
 }

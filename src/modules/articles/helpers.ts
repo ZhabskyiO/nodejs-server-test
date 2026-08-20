@@ -32,6 +32,24 @@ export function normalizeTags(tags: readonly string[] | undefined): string[] {
   return [...seen];
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * The instant a draft has to predate to count as stale. `days = 0` means "any
+ * draft not touched in this exact millisecond", which is what the digest smoke
+ * test leans on to fire without waiting two weeks.
+ */
+export function staleCutoff(now: Date, days: number): Date {
+  return new Date(now.getTime() - days * MS_PER_DAY);
+}
+
+/** One digest line: `<slug> — untouched since 2026-07-28 (14d)`. */
+export function toDigestLine(row: ArticleRow, now: Date): string {
+  const idleDays = Math.floor((now.getTime() - row.updatedAt.getTime()) / MS_PER_DAY);
+  const since = row.updatedAt.toISOString().slice(0, 10);
+  return `${row.slug} — untouched since ${since} (${idleDays}d)`;
+}
+
 export interface ArticleDto {
   id: string;
   slug: string;
